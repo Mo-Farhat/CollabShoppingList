@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "157722183443",
+    "project_id": "shopeeapp",
+    "storage_bucket": "shopeeapp.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:157722183443:android:c72b1c434d3e355565fce6",
+        "android_client_info": {
+          "package_name": "com.farhat.shopeeapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNe9NLai4_mGhoTqDqm98YeD4A0zLhgvw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
