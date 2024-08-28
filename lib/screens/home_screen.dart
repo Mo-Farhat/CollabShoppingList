@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../budget/budget_overview_screen.dart';
 import 'list_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -12,6 +13,15 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Shopee'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await authService.signOut();
+              Navigator.of(context).pushReplacementNamed('/login');
+            },
+          ),
+        ],
       ),
       body: Center(
         child: Column(
@@ -25,32 +35,27 @@ class HomeScreen extends StatelessWidget {
                 color: Colors.blueGrey,
               ),
             ),
-            SizedBox(height: 20), // Add spacing between text and buttons
+            SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => ListScreen(), // No need for listId here
+                    builder: (context) => ListScreen(),
                   ),
                 );
               },
               child: Text('Manage Lists'),
             ),
-            SizedBox(height: 20), // Add spacing between buttons
+            SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
-                // Implement navigation to Manage Budget screen here
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => BudgetOverviewScreen(),
+                  ),
+                );
               },
               child: Text('Budget Tracker'),
-            ),
-            SizedBox(height: 20), // Add spacing between buttons
-            ElevatedButton(
-              onPressed: () {
-                authService.signOut().then((_) {
-                  Navigator.of(context).pushReplacementNamed('/login');
-                });
-              },
-              child: Text('Logout'),
             ),
           ],
         ),

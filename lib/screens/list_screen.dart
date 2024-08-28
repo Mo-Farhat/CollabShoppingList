@@ -88,15 +88,26 @@ class _ListScreenState extends State<ListScreen> {
 
   void _showCreateListDialog() {
     TextEditingController _nameController = TextEditingController();
+    TextEditingController _budgetController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text('Create New List'),
-          content: TextField(
-            controller: _nameController,
-            decoration: InputDecoration(labelText: 'List Name'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: InputDecoration(labelText: 'List Name'),
+              ),
+              TextField(
+                controller: _budgetController,
+                decoration: InputDecoration(labelText: 'Combined Budget'),
+                keyboardType: TextInputType.number,
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -105,7 +116,7 @@ class _ListScreenState extends State<ListScreen> {
             ),
             TextButton(
               onPressed: () {
-                _createList(_nameController.text);
+                _createList(_nameController.text, double.parse(_budgetController.text));
                 Navigator.of(context).pop();
               },
               child: Text('Create'),
@@ -116,14 +127,17 @@ class _ListScreenState extends State<ListScreen> {
     );
   }
 
-  Future<void> _createList(String name) async {
+  Future<void> _createList(String name, double budget) async {
     try {
       await _firestore.collection('lists').add({
         'name': name,
         'createdBy': user?.uid,
         'sharedWith': [user?.uid],
         'items': [],
-        'note': '', // Initialize with an empty note field
+        'note': '',
+        'totalAmount': 0.0,
+        'userTotals': {user?.uid: 0.0},
+        'combinedBudget': budget, // Store the budget in Firestore
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('List created successfully')),
@@ -134,6 +148,7 @@ class _ListScreenState extends State<ListScreen> {
       );
     }
   }
+
 
   void _showOptionsDialog(String listId, String createdBy) {
     showModalBottomSheet(
@@ -202,7 +217,6 @@ class _ListScreenState extends State<ListScreen> {
 
   Future<void> _shareList(String listId, String email) async {
     try {
-      // Fetch the user document by email
       var userDoc = await _firestore
           .collection('users')
           .where('email', isEqualTo: email)
@@ -218,7 +232,6 @@ class _ListScreenState extends State<ListScreen> {
 
       var sharedUserId = userDoc.docs.first.id;
 
-      // Update the 'sharedWith' field of the list
       await _firestore.collection('lists').doc(listId).update({
         'sharedWith': FieldValue.arrayUnion([sharedUserId]),
       });
@@ -237,123 +250,41 @@ class _ListScreenState extends State<ListScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        return SharedPeopleDialog(listId: listId);
+        return AlertDialog(
+          title: Text('Shared with'),
+          content: FutureBuilder<List<String>>(
+            future: _fetchSharedPeople(listId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return CircularProgressIndicator();
+              }
+
+              if (snapshot.hasError) {
+                return Text('Error: ${snapshot.error}');
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return Text('This list is not shared with anyone.');
+              }
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: snapshot.data!.map((email) => Text(email)).toList(),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Close'),
+            ),
+          ],
+        );
       },
     );
   }
 
-  Future<void> _deleteList(String listId) async {
-    try {
-      await _firestore.collection('lists').doc(listId).delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('List deleted successfully')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete list: $e')),
-      );
-    }
-  }
-
-  void _showNoteDialog(String listId) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return NoteDialog(listId: listId);
-      },
-    );
-  }
-}
-
-class NoteDialog extends StatefulWidget {
-  final String listId;
-
-  NoteDialog({required this.listId});
-
-  @override
-  _NoteDialogState createState() => _NoteDialogState();
-}
-
-class _NoteDialogState extends State<NoteDialog> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  late TextEditingController _noteController;
-  String _note = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _noteController = TextEditingController();
-    _fetchNote();
-  }
-
-  Future<void> _fetchNote() async {
-    try {
-      DocumentSnapshot doc = await _firestore.collection('lists').doc(widget.listId).get();
-      if (doc.exists) {
-        setState(() {
-          _note = doc['note'] ?? '';
-          _noteController.text = _note;
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to fetch note: $e')),
-      );
-    }
-  }
-
-  Future<void> _saveNote() async {
-    try {
-      await _firestore.collection('lists').doc(widget.listId).update({
-        'note': _noteController.text,
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Note saved successfully')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save note: $e')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Notes'),
-      content: TextField(
-        controller: _noteController,
-        maxLines: 10,
-        decoration: InputDecoration(
-          border: OutlineInputBorder(),
-          hintText: 'Add your notes here...',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            _saveNote();
-            Navigator.of(context).pop();
-          },
-          child: Text('Save'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancel'),
-        ),
-      ],
-    );
-  }
-}
-
-class SharedPeopleDialog extends StatelessWidget {
-  final String listId;
-
-  SharedPeopleDialog({required this.listId});
-
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  Future<List<String>> _fetchSharedPeople() async {
+  Future<List<String>> _fetchSharedPeople(String listId) async {
     try {
       DocumentSnapshot listDoc = await _firestore.collection('lists').doc(listId).get();
 
@@ -377,35 +308,92 @@ class SharedPeopleDialog extends StatelessWidget {
     }
   }
 
+  Future<void> _deleteList(String listId) async {
+    try {
+      await _firestore.collection('lists').doc(listId).delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('List deleted successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete list: $e')),
+      );
+    }
+  }
+
+  void _showNoteDialog(String listId) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _NoteDialog(listId: listId);
+      },
+    );
+  }
+}
+
+class _NoteDialog extends StatefulWidget {
+  final String listId;
+
+  _NoteDialog({required this.listId});
+
+  @override
+  _NoteDialogState createState() => _NoteDialogState();
+}
+
+class _NoteDialogState extends State<_NoteDialog> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late TextEditingController _noteController;
+  String _note = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _noteController = TextEditingController();
+    _fetchNote();
+  }
+
+  Future<void> _fetchNote() async {
+    try {
+      DocumentSnapshot doc = await _firestore.collection('lists').doc(widget.listId).get();
+      if (doc.exists) {
+        setState(() {
+          _note = doc['note'] ?? '';
+          _noteController.text = _note;
+        });
+      }
+    } catch (e) {
+      // Handle error
+    }
+  }
+
+  Future<void> _saveNote() async {
+    try {
+      await _firestore.collection('lists').doc(widget.listId).update({
+        'note': _noteController.text,
+      });
+      Navigator.of(context).pop();
+    } catch (e) {
+      // Handle error
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Shared with'),
-      content: FutureBuilder<List<String>>(
-        future: _fetchSharedPeople(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return CircularProgressIndicator();
-          }
-
-          if (snapshot.hasError) {
-            return Text('Error: ${snapshot.error}');
-          }
-
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Text('This list is not shared with anyone.');
-          }
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: snapshot.data!.map((email) => Text(email)).toList(),
-          );
-        },
+      title: Text('Notes'),
+      content: TextField(
+        controller: _noteController,
+        maxLines: 5,
+        decoration: InputDecoration(hintText: 'Enter your note here'),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Close'),
+          child: Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _saveNote,
+          child: Text('Save'),
         ),
       ],
     );

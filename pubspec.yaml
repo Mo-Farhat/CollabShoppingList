@@ -36,7 +36,7 @@ dependencies:
   provider:
   google_sign_in:
   uuid: ^3.0.6
-
+  fl_chart:
 
 
   # The following adds the Cupertino Icons font to your application.
